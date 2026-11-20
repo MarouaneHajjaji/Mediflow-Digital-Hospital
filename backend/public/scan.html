@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>MediFlow Scan Mobile</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    :root {
+      --blue: #0f5bd8;
+      --blue-dark: #0a43a3;
+      --panel: rgba(255,255,255,0.06);
+      --border: rgba(255,255,255,0.1);
+      --text-soft: rgba(255,255,255,0.58);
+      --success: #0ea76f;
+      --danger: #dc2626;
+    }
+    body {
+      min-height: 100vh;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: radial-gradient(circle at top, #17315d 0%, #09101f 55%, #050914 100%);
+      color: white;
+      display: flex;
+      flex-direction: column;
+    }
+    .header {
+      padding: 18px 18px 14px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255,255,255,0.04);
+      backdrop-filter: blur(12px);
+    }
+    .header h1 { font-size: 18px; font-weight: 700; }
+    .header p { font-size: 12px; color: var(--text-soft); margin-top: 4px; }
+    .content {
+      flex: 1;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 16px;
+      backdrop-filter: blur(14px);
+    }
+    .preview {
+      min-height: 280px;
+      border: 2px dashed rgba(255,255,255,0.18);
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+      background: rgba(255,255,255,0.02);
+    }
+    .preview.has-image { border-style: solid; border-color: rgba(15,91,216,0.7); }
+    .preview img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: none;
+    }
+    .preview img.show { display: block; }
+    .placeholder {
+      text-align: center;
+      color: var(--text-soft);
+      padding: 24px;
+      line-height: 1.5;
+    }
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    button, select, input, textarea {
+      font: inherit;
+    }
+    .btn, .upload-btn {
+      border: none;
+      border-radius: 14px;
+      padding: 14px 16px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn-primary, .upload-btn {
+      background: var(--blue);
+      color: white;
+    }
+    .btn-secondary {
+      background: rgba(255,255,255,0.08);
+      color: white;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .btn:active, .upload-btn:active { transform: scale(0.985); }
+    .upload-btn:disabled {
+      background: rgba(255,255,255,0.12);
+      color: rgba(255,255,255,0.35);
+      cursor: not-allowed;
+    }
+    .stack { display: flex; flex-direction: column; gap: 12px; }
+    label {
+      font-size: 12px;
+      color: var(--text-soft);
+      margin-bottom: 6px;
+      display: block;
+    }
+    select, input, textarea {
+      width: 100%;
+      padding: 11px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.08);
+      color: white;
+    }
+    textarea {
+      min-height: 76px;
+      resize: vertical;
+    }
+    .field-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 380px) {
+      .field-grid { grid-template-columns: 1fr; }
+    }
+    option { color: black; }
+    .status {
+      font-size: 12px;
+      color: var(--text-soft);
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--danger);
+    }
+    .dot.online { background: var(--success); }
+    .progress {
+      display: none;
+      font-size: 12px;
+      color: var(--text-soft);
+    }
+    .progress-bar {
+      width: 100%;
+      height: 7px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: rgba(255,255,255,0.08);
+      margin-top: 8px;
+    }
+    .progress-bar > div {
+      width: 0;
+      height: 100%;
+      background: linear-gradient(90deg, #0f5bd8, #45a2ff);
+      transition: width 0.25s ease;
+    }
+    .success {
+      display: none;
+      text-align: center;
+      gap: 12px;
+      flex-direction: column;
+      align-items: center;
+    }
+    .success.show { display: flex; }
+    .success img {
+      width: 120px;
+      height: 120px;
+      object-fit: cover;
+      border-radius: 16px;
+      border: 2px solid rgba(14,167,111,0.5);
+    }
+    input[type=file] { display: none; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>MediFlow Scan Mobile</h1>
+    <p>Prenez une photo, associez-la à un patient, puis envoyez-la dans l'archive.</p>
+  </div>
+
+  <div class="content">
+    <div class="card">
+      <div class="preview" id="preview" onclick="document.getElementById('camera-input').click()">
+        <img id="preview-image" alt="Prévisualisation">
+        <div class="placeholder" id="placeholder">
+          Touchez ici pour prendre une photo
+          <br>
+          ou choisissez une image depuis la galerie.
+        </div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" type="button" onclick="document.getElementById('camera-input').click()">Caméra</button>
+      <button class="btn btn-secondary" type="button" onclick="document.getElementById('gallery-input').click()">Galerie</button>
+    </div>
+
+    <div class="card stack">
+      <div>
+        <label for="doc-patient">Patient existant</label>
+        <select id="doc-patient" onchange="fillPatientFields()">
+          <option value="">Sélectionner un patient</option>
+        </select>
+      </div>
+      <div class="field-grid">
+        <div>
+          <label for="patient-last-name">Nom</label>
+          <input id="patient-last-name" type="text" placeholder="Nom du patient">
+        </div>
+        <div>
+          <label for="patient-first-name">Prénom</label>
+          <input id="patient-first-name" type="text" placeholder="Prénom du patient">
+        </div>
+      </div>
+      <div class="field-grid">
+        <div>
+          <label for="patient-age">Âge</label>
+          <input id="patient-age" type="number" min="0" max="130" inputmode="numeric" placeholder="Ex: 42">
+        </div>
+        <div>
+          <label for="entry-number">N° d'entrée</label>
+          <input id="entry-number" type="text" placeholder="Ex: ENT-2026-001">
+        </div>
+      </div>
+      <div class="field-grid">
+        <div>
+          <label for="entry-date">Date d'entrée</label>
+          <input id="entry-date" type="date">
+        </div>
+        <div>
+          <label for="exit-date">Date de sortie</label>
+          <input id="exit-date" type="date">
+        </div>
+      </div>
+      <div>
+        <label for="treating-doctor">Médecin traitant</label>
+        <input id="treating-doctor" type="text" placeholder="Dr. Nom du médecin">
+      </div>
+      <div>
+        <label for="doc-type">Type</label>
+        <select id="doc-type">
+          <option value="scan">Scan / document</option>
+          <option value="radio">Radiologie</option>
+          <option value="analyse">Analyse / résultat</option>
+          <option value="ordonnance">Ordonnance</option>
+        </select>
+      </div>
+      <div>
+        <label for="doc-description">Observation</label>
+        <textarea id="doc-description" placeholder="Notes rapides pour l'équipe"></textarea>
+      </div>
+    </div>
+
+    <div class="card progress" id="progress-wrap">
+      <div id="progress-text">Envoi en cours...</div>
+      <div class="progress-bar"><div id="progress-fill"></div></div>
+    </div>
+
+    <button class="upload-btn" id="upload-btn" onclick="uploadDocument()" disabled>Envoyer dans l'archive</button>
+
+    <div class="card success" id="success-box">
+      <img id="success-image" alt="">
+      <strong>Document envoyé avec succès</strong>
+      <span style="color: var(--text-soft); font-size: 13px;">Le scan est maintenant disponible dans l'archive MediFlow sur le PC.</span>
+      <button class="btn btn-primary" type="button" onclick="resetForm()">Scanner un autre document</button>
+    </div>
+
+    <div class="status">
+      <span class="dot" id="status-dot"></span>
+      <span id="status-text">Vérification de la connexion…</span>
+    </div>
+  </div>
+
+  <input id="camera-input" type="file" accept="image/*" capture="environment" onchange="handleFile(event)">
+  <input id="gallery-input" type="file" accept="image/*" onchange="handleFile(event)">
+
+  <script>
+    let selectedFile = null;
+    let availablePatients = [];
+    const BASE_PATH = window.location.pathname.replace(/\/scan\/?$/, '');
+    const API_BASE = `${BASE_PATH}/api`;
+    const SCAN_TOKEN = new URLSearchParams(window.location.search).get('token') || '';
+
+    function buildAuthHeaders() {
+      return SCAN_TOKEN ? { Authorization: `Bearer ${SCAN_TOKEN}` } : {};
+    }
+
+    function resolveAssetUrl(url) {
+      if (!url) return '';
+      if (/^(https?:|data:|blob:)/i.test(url)) return url;
+      if (url.startsWith('/')) return `${BASE_PATH}${url}`;
+      return `${BASE_PATH}/${url}`;
+    }
+
+    function splitPatientName(name) {
+      const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+      if (parts.length <= 1) {
+        return { firstName: parts[0] || '', lastName: '' };
+      }
+
+      return {
+        firstName: parts[0],
+        lastName: parts.slice(1).join(' '),
+      };
+    }
+
+    function buildDocumentName() {
+      const firstName = document.getElementById('patient-first-name').value.trim();
+      const lastName = document.getElementById('patient-last-name').value.trim();
+      const entryNumber = document.getElementById('entry-number').value.trim();
+      const patientName = [firstName, lastName].filter(Boolean).join(' ');
+      const suffix = entryNumber ? ` - ${entryNumber}` : '';
+
+      return patientName ? `Dossier médical ${patientName}${suffix}` : '';
+    }
+
+    function fillPatientFields() {
+      const patientId = document.getElementById('doc-patient').value;
+      const patient = availablePatients.find((item) => String(item.id) === String(patientId));
+      if (!patient) return;
+
+      const names = splitPatientName(patient.name);
+      document.getElementById('patient-first-name').value = names.firstName;
+      document.getElementById('patient-last-name').value = names.lastName;
+      document.getElementById('patient-age').value = patient.age || '';
+      document.getElementById('entry-number').value = patient.patient_code || '';
+      document.getElementById('entry-date').value = patient.entry_date || '';
+      document.getElementById('exit-date').value = patient.exit_date || '';
+      document.getElementById('treating-doctor').value = patient.treating_doctor || '';
+    }
+
+    function handleFile(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+
+      selectedFile = file;
+      const image = document.getElementById('preview-image');
+      image.src = URL.createObjectURL(file);
+      image.classList.add('show');
+      document.getElementById('preview').classList.add('has-image');
+      document.getElementById('placeholder').style.display = 'none';
+      document.getElementById('upload-btn').disabled = false;
+      event.target.value = '';
+    }
+
+    async function loadPatients() {
+      try {
+        const response = await fetch(`${API_BASE}/archive/patients`, {
+          headers: buildAuthHeaders(),
+        });
+        const payload = await response.json();
+        const patients = payload.data ? payload.data.items : payload.items || [];
+        availablePatients = patients;
+        const select = document.getElementById('doc-patient');
+        select.innerHTML = '<option value="">Sélectionner un patient</option>';
+
+        patients.forEach((patient) => {
+          const option = document.createElement('option');
+          option.value = patient.id;
+          option.textContent = `${patient.name} (${patient.patient_code || '#' + patient.id})`;
+          select.appendChild(option);
+        });
+      } catch (error) {
+        console.warn('Impossible de charger les patients.', error);
+      }
+    }
+
+    async function checkStatus() {
+      try {
+        const response = await fetch(`${API_BASE}/archive/server-info`, {
+          headers: buildAuthHeaders(),
+        });
+        if (!response.ok) throw new Error('Offline');
+        document.getElementById('status-dot').classList.add('online');
+        document.getElementById('status-text').textContent = 'Connecté au serveur MediFlow';
+      } catch (error) {
+        document.getElementById('status-dot').classList.remove('online');
+        document.getElementById('status-text').textContent = 'Serveur indisponible';
+      }
+    }
+
+    async function uploadDocument() {
+      if (!selectedFile) return;
+
+      const button = document.getElementById('upload-btn');
+      const progressWrap = document.getElementById('progress-wrap');
+      const progressText = document.getElementById('progress-text');
+      const progressFill = document.getElementById('progress-fill');
+
+      button.disabled = true;
+      progressWrap.style.display = 'block';
+      progressFill.style.width = '12%';
+      progressText.textContent = 'Préparation du fichier...';
+
+      const formData = new FormData();
+      const firstName = document.getElementById('patient-first-name').value.trim();
+      const lastName = document.getElementById('patient-last-name').value.trim();
+      const age = document.getElementById('patient-age').value.trim();
+      const entryNumber = document.getElementById('entry-number').value.trim();
+      const entryDate = document.getElementById('entry-date').value;
+      const exitDate = document.getElementById('exit-date').value;
+      const treatingDoctor = document.getElementById('treating-doctor').value.trim();
+      const description = document.getElementById('doc-description').value.trim();
+
+      formData.append('image', selectedFile);
+      formData.append('name', buildDocumentName());
+      formData.append('type', document.getElementById('doc-type').value);
+      formData.append('patientId', document.getElementById('doc-patient').value);
+      formData.append('description', description);
+      formData.append('patientFirstName', firstName);
+      formData.append('patientLastName', lastName);
+      formData.append('patientAge', age);
+      formData.append('entryNumber', entryNumber);
+      formData.append('entryDate', entryDate);
+      formData.append('exitDate', exitDate);
+      formData.append('treatingDoctor', treatingDoctor);
+      formData.append('source', 'mobile');
+
+      let current = 12;
+      const interval = setInterval(() => {
+        current = Math.min(current + 14, 88);
+        progressFill.style.width = current + '%';
+      }, 220);
+
+      try {
+        const response = await fetch(`${API_BASE}/archive/upload`, {
+          method: 'POST',
+          headers: buildAuthHeaders(),
+          body: formData,
+        });
+
+        clearInterval(interval);
+
+        const rawResponse = await response.text();
+        const jsonStart = rawResponse.indexOf('{');
+        const jsonEnd = rawResponse.lastIndexOf('}');
+        let payload = null;
+
+        if (jsonStart !== -1 && jsonEnd > jsonStart) {
+          try {
+            payload = JSON.parse(rawResponse.slice(jsonStart, jsonEnd + 1));
+          } catch (_error) {
+            payload = null;
+          }
+        }
+
+        if (!response.ok || !payload) {
+          const errorMessage = payload?.message || payload?.error || 'Upload échoué';
+          throw new Error(errorMessage);
+        }
+
+        const documentItem = payload.data ? payload.data.item : payload.item;
+        progressFill.style.width = '100%';
+        progressText.textContent = 'Document envoyé';
+
+        setTimeout(() => {
+          document.getElementById('success-image').src = resolveAssetUrl(documentItem.imageUrl);
+          document.getElementById('success-box').classList.add('show');
+          progressWrap.style.display = 'none';
+        }, 250);
+      } catch (error) {
+        clearInterval(interval);
+        progressWrap.style.display = 'none';
+        button.disabled = false;
+        const message = error instanceof Error ? error.message : 'Erreur pendant l’envoi.';
+        alert(`Erreur pendant l’envoi: ${message}`);
+        console.error(error);
+      }
+    }
+
+    function resetForm() {
+      selectedFile = null;
+      document.getElementById('preview-image').src = '';
+      document.getElementById('preview-image').classList.remove('show');
+      document.getElementById('preview').classList.remove('has-image');
+      document.getElementById('placeholder').style.display = '';
+      document.getElementById('doc-description').value = '';
+      document.getElementById('doc-patient').value = '';
+      document.getElementById('patient-last-name').value = '';
+      document.getElementById('patient-first-name').value = '';
+      document.getElementById('patient-age').value = '';
+      document.getElementById('entry-number').value = '';
+      document.getElementById('entry-date').value = '';
+      document.getElementById('exit-date').value = '';
+      document.getElementById('treating-doctor').value = '';
+      document.getElementById('doc-type').value = 'scan';
+      document.getElementById('upload-btn').disabled = true;
+      document.getElementById('success-box').classList.remove('show');
+    }
+
+    loadPatients();
+    checkStatus();
+    setInterval(checkStatus, 10000);
+  </script>
+</body>
+</html>
